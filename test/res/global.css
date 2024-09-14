@@ -1,0 +1,37 @@
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  src:
+    local("Inter"),
+    url("./Inter-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  src:
+    local(""),
+    url("./Inter-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 400;
+  src:
+    local(""),
+    url("./Roboto-Regular-webfont.woff") format("woff"),
+    url("./Roboto-Regular-webfont.ttf") format("ttf");
+}
+
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 500;
+  src:
+    local(""),
+    url("./Roboto-Medium-webfont.woff") format("woff"),
+    url("./Roboto-Medium-webfont.ttf") format("ttf");
+}

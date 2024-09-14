@@ -7,12 +7,18 @@ export function validateOptions(options?: TypeOptions) {
       throw new Error(`${pluginName}: Options must be a plain object`);
     }
 
-    if (typeof options.param !== 'undefined') {
-      if (typeof options.param !== 'string') {
-        throw new Error(`${pluginName}: The "param" parameter must be a string`);
+    if (typeof options.logToConsole !== 'undefined') {
+      if (typeof options.logToConsole !== 'boolean') {
+        throw new Error(`${pluginName}: The "logToConsole" parameter must be a boolean`);
       }
-      if (!options.param) {
-        throw new Error(`${pluginName}: The "param" parameter must be a non-empty string`);
+    }
+
+    if (typeof options.logToFile !== 'undefined') {
+      if (typeof options.logToFile !== 'string') {
+        throw new Error(`${pluginName}: The "logToFile" parameter must be a string`);
+      }
+      if (!options.logToFile) {
+        throw new Error(`${pluginName}: The "logToFile" parameter must be a non-empty string`);
       }
     }
   }

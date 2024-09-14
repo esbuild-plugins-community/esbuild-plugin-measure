@@ -1,5 +1,5 @@
 {
-  "name": "@espcom/any",
+  "name": "@espcom/esbuild-plugin-perf",
   "author": "espcom",
   "license": "MIT",
   "version": "0.0.1",
@@ -7,7 +7,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/esbuild-plugins-community/any"
+    "url": "git+https://github.com/esbuild-plugins-community/esbuild-plugin-perf.git"
   },
   "scripts": {
     "prepare": "husky",
@@ -21,6 +21,9 @@
     "test-watch": "pnpm run build&&node --import tsx --test --watch ./test/*.test.*",
     "gen-coverage-badge": "node --import tsx ./scripts/genCoverageBadge.ts",
     "gen-size-badge": "node --import tsx ./scripts/genSizeBadges.ts"
+  },
+  "dependencies": {
+    "colorette": "2.0.20"
   },
   "devDependencies": {
     "@types/node": "22.5.1",
