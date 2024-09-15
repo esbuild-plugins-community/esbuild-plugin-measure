@@ -4,8 +4,8 @@ import * as assert from 'node:assert/strict';
 import { pluginPerf } from '../src/index.js';
 
 const nonObjects = [0, true, null, '', [], () => false];
-const nonStrings = [0, true, null, [], () => false, {}];
 const nonBoolean = [0, null, [], () => false, {}, ''];
+const nonFunctions = [0, null, [], true, {}, ''];
 
 void describe('Validate options', async () => {
   await it('options should be an object or undefined', () => {
@@ -30,16 +30,13 @@ void describe('Validate options', async () => {
     });
   });
 
-  await it('options.logToFile should be a full string or undefined', () => {
-    assert.doesNotThrow(() => pluginPerf({ logToFile: undefined }));
-    assert.doesNotThrow(() => pluginPerf({ logToFile: '1' }));
-    assert.throws(() => pluginPerf({ logToFile: '' }), {
-      message: '@espcom/esbuild-plugin-perf: The "logToFile" parameter must be a non-empty string',
-    });
+  await it('options.onMetricsReady should be a function or undefined', () => {
+    assert.doesNotThrow(() => pluginPerf({ onMetricsReady: undefined }));
+    assert.doesNotThrow(() => pluginPerf({ onMetricsReady: () => null }));
 
-    nonStrings.forEach((value: any) => {
-      assert.throws(() => pluginPerf({ logToFile: value }), {
-        message: '@espcom/esbuild-plugin-perf: The "logToFile" parameter must be a string',
+    nonFunctions.forEach((value: any) => {
+      assert.throws(() => pluginPerf({ onMetricsReady: value }), {
+        message: '@espcom/esbuild-plugin-perf: The "onMetricsReady" parameter must be a function',
       });
     });
   });

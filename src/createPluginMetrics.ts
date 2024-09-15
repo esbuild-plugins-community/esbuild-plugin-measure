@@ -1,18 +1,18 @@
 import { Plugin } from 'esbuild';
 
-import { TypeMetrics } from './types.js';
+import { TypeMetrics, TypePluginMetrics } from './types.js';
 
-export function createPluginMetrics(metrics: TypeMetrics, plugin: Plugin) {
+export function createPluginMetrics(metrics: TypeMetrics, plugin: Plugin): TypePluginMetrics {
   let pluginMetricsName = plugin.name;
 
   let i = 1;
 
-  while (metrics[pluginMetricsName]) {
+  while (metrics.plugins[pluginMetricsName]) {
     // eslint-disable-next-line no-plusplus
     pluginMetricsName = `${plugin.name} (${++i})`;
   }
 
-  metrics[pluginMetricsName] = { duration: 0, events: {} as any };
+  metrics.plugins[pluginMetricsName] = { duration: 0, hooks: {} as any };
 
-  return metrics[pluginMetricsName];
+  return metrics.plugins[pluginMetricsName];
 }

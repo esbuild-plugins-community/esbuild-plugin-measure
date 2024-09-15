@@ -13,12 +13,9 @@ export function validateOptions(options?: TypeOptions) {
       }
     }
 
-    if (typeof options.logToFile !== 'undefined') {
-      if (typeof options.logToFile !== 'string') {
-        throw new Error(`${pluginName}: The "logToFile" parameter must be a string`);
-      }
-      if (!options.logToFile) {
-        throw new Error(`${pluginName}: The "logToFile" parameter must be a non-empty string`);
+    if (typeof options.onMetricsReady !== 'undefined') {
+      if (typeof options.onMetricsReady !== 'function') {
+        throw new Error(`${pluginName}: The "onMetricsReady" parameter must be a function`);
       }
     }
   }

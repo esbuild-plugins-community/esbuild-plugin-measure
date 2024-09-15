@@ -12,7 +12,7 @@ insights into the performance of esbuild plugins.
 ## Features
 
 - Measures the duration of esbuild plugin hooks.
-- Logs performance metrics to the console or a file.
+- Logs performance metrics to the console or gives a ready object to the callback.
 - Provides detailed breakdowns of hook executions for each plugin.
 - Supports `build`, `rebuild` and `watch` modes.
 - Supports measuring of several plugin instances.
@@ -33,7 +33,7 @@ It should be placed **first** to work correctly:
 ```typescript
 import path from 'node:path';
 import esbuild from 'esbuild';
-import { pluginPerf } from '@espcom/esbuild-plugin-perf';
+import { pluginPerf, TypeMetrics } from '@espcom/esbuild-plugin-perf';
 
 esbuild.build({
   entryPoints: ['src/index.ts'],
@@ -42,7 +42,9 @@ esbuild.build({
   plugins: [
     pluginPerf({
       logToConsole: true, // logs metrics to console
-      logToFile: path.resolve('metrics.json') // logs metrics to a file
+      onMetricsReady: (metrics: TypeMetrics) => {
+        // maybe save to file
+      }
     }),
     ... other plugins
   ],
@@ -52,49 +54,81 @@ esbuild.build({
 ### Options
 
 - `logToConsole`: (boolean optional) Logs the performance metrics to the console. Default is `true`.
-- `logToFile`: (string optional) Path to the file where metrics should be logged. 
-If not provided, metrics will not be written to a file.
+- `onMetricsReady`: (function optional) A function with a `metrics` argument
 
 ### Example Console Output
 
 ```
-[@my-plugin] took 124.54 ms
-  ▶ setup: 1 execution took 4.94 ms
-  ▶ onStart: 1 execution took 5.37 ms
-  ▶ onResolve: 8 executions took 49.77 ms
-  ▶ onLoad: 8 executions took 57.37 ms
-  ▶ onEnd: 1 execution took 8.21 ms
+Plugins (in parallel) took 355.25 ms
+
+[@espcom/esbuild-plugin-replace] took 332.67 ms
+  ▶ setup: 1 execution took 0.25 ms
+  ▶ onLoad: 518 executions took 332.41 ms
+[sass-plugin] took 281.24 ms
+  ▶ setup: 1 execution took 6.71 ms
+  ▶ onStart: 1 execution took 0.04 ms
+  ▶ onLoad: 1 execution took 274.49 ms
+[sass-plugin (2)] took 302.19 ms
+  ▶ setup: 1 execution took 5.23 ms
+  ▶ onStart: 1 execution took 0.03 ms
+  ▶ onResolve: 42 executions took 217.99 ms
+  ▶ onLoad: 84 executions took 296.93 ms
+[@espcom/esbuild-plugin-inject-preload] took 10.32 ms
+  ▶ setup: 1 execution took 0.22 ms
+  ▶ onEnd: 1 execution took 10.10 ms
 ```
 
-### Example File Output (JSON)
+### Example Raw Metrics Output
 
 ```json
 {
-  "@my-plugin": {
-    "duration": 120.3,
-    "events": {
-      "onLoad": [30.5, 20.1, 29.4],
-      "onResolve": [40.3]
-    }
+  "duration": 308.14735200000007,
+  "plugins": {
+    "plugin-test-all": {
+      "duration": 253.366342,
+      "hooks": {
+        "setup": {
+          "iterations": 1,
+          "duration": 4.209176999999983,
+          "start": 149.894539
+        },
+        "onStart": {
+          "iterations": 1,
+          "duration": 5.490779000000003,
+          "start": 180.251755
+        },
+        "onResolve": {
+          "iterations": 8,
+          "duration": 233.75613800000002,
+          "start": 187.122189
+        },
+        "onLoad": {
+          "iterations": 8,
+          "duration": 235.042409,
+          "start": 212.961732
+        },
+        "onEnd": {
+          "iterations": 1,
+          "duration": 8.623977000000025,
+          "start": 469.919069
+        }
+      }
+    },
+    "plugin-test-onstart": {
+      "duration": 9.782200000000017,
+      "hooks": {
+        "setup": {
+          "iterations": 1,
+          "duration": 4.306949000000003,
+          "start": 167.535588
+        },
+        "onStart": {
+          "iterations": 1,
+          "duration": 5.475251000000014,
+          "start": 180.389141
+        }
+      }
+    },
   }
 }
-```
-
-Read file with typings:
-
-```typescript
-import fs from 'node:fs';
-import path from 'node:path';
-import esbuild from 'esbuild';
-import { pluginPerf, TypeMetrics } from '@espcom/esbuild-plugin-perf';
-
-await esbuild.build({
-  plugins: [pluginPerf({ logToFile: path.resolve('metrics.json') })],
-});
-
-// The file is written asynchronously, so setTimeout is necessary here
-
-setTimeout(() => {
-    const metrics: TypeMetrics = JSON.parse(fs.readFileSync(path.resolve('metrics.json'), 'utf-8'));
-}, 10)
 ```

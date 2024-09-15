@@ -1,23 +1,25 @@
 import { Plugin } from 'esbuild';
 
 import { validateOptions } from './validators/validateOptions.js';
-import { pluginName } from './constants.js';
-import { TypeEvents, TypeMetrics, TypeOptions } from './types.js';
+import { logInterval, pluginName } from './constants.js';
+import { TypeMetrics, TypeOptions } from './types.js';
 import { wrapPlugins } from './wrapPlugins.js';
-import { logToConsole, logToFile } from './loggers.js';
+import { logToConsole } from './loggers.js';
+import { fillMetrics } from './fillMetrics.js';
+import { clearMetrics } from './clearMetrics.js';
 
 export const pluginPerf = (options?: TypeOptions): Plugin => {
   validateOptions(options);
 
   const finalOptions: TypeOptions = {
-    logToFile: options?.logToFile,
+    onMetricsReady: options?.onMetricsReady,
     logToConsole: options?.logToConsole ?? true,
   };
 
   return {
     name: pluginName,
     setup: (build) => {
-      const metrics: TypeMetrics = {};
+      const metrics: TypeMetrics = { duration: 0, plugins: {} };
       const detector: { onEndExecuting: boolean } = { onEndExecuting: false };
 
       wrapPlugins(detector, metrics, build);
@@ -26,20 +28,15 @@ export const pluginPerf = (options?: TypeOptions): Plugin => {
         const interval = setInterval(() => {
           if (!detector.onEndExecuting) {
             clearInterval(interval);
+            fillMetrics(metrics);
 
             if (finalOptions.logToConsole) logToConsole(metrics);
-            if (finalOptions.logToFile) logToFile(metrics, finalOptions.logToFile);
 
-            Object.values(metrics).forEach((metric) => {
-              metric.duration = 0;
+            finalOptions.onMetricsReady?.(JSON.parse(JSON.stringify(metrics)));
 
-              Object.keys(metric.events).forEach((key) => {
-                metric.events[key as TypeEvents] = [];
-              });
-            });
+            clearMetrics(metrics);
           }
-          // eslint-disable-next-line @typescript-eslint/no-magic-numbers
-        }, 5);
+        }, logInterval);
       });
     },
   };
