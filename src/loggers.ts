@@ -1,5 +1,3 @@
-import * as fs from 'node:fs';
-
 import { green, white, yellow, yellowBright } from 'colorette';
 
 import { TypeMetrics } from './types.js';
@@ -9,21 +7,17 @@ export function logToConsole(metrics: TypeMetrics) {
     return `${count} ${noun}${count !== 1 ? suffix : ''}`;
   }
 
-  Object.entries(metrics).forEach(([pName, { duration, events }]) => {
-    let summary = green(`[${pName}] `);
+  let summary = `\nPlugins (in parallel) took ${yellow(`${metrics.duration.toFixed(2)} ms`)}\n`;
+
+  Object.entries(metrics.plugins).forEach(([pName, { duration, hooks }]) => {
+    summary += green(`\n[${pName}] `);
     summary += `took ${yellowBright(`${duration.toFixed(2)} ms`)}`;
 
-    Object.entries(events).forEach(([hookName, hookDurations]) => {
-      const hookTotalDuration = hookDurations.reduce((acc, num) => acc + num, 0).toFixed(2);
-
-      summary += `\n  ${white(`▶ ${hookName}`)}: ${pluralize(hookDurations.length, 'execution')} `;
-      summary += `took ${yellow(`${hookTotalDuration} ms`)}`;
+    Object.entries(hooks).forEach(([hookName, hookMetrics]) => {
+      summary += `\n  ${white(`▶ ${hookName}`)}: ${pluralize(hookMetrics.iterations, 'execution')} `;
+      summary += `took ${yellow(`${hookMetrics.duration.toFixed(2)} ms`)}`;
     });
-    // eslint-disable-next-line no-console
-    console.log(summary);
   });
-}
-
-export function logToFile(metrics: TypeMetrics, destination: string) {
-  fs.writeFileSync(destination, JSON.stringify(metrics, null, 2), 'utf-8');
+  // eslint-disable-next-line no-console
+  console.log(summary);
 }

@@ -1,14 +1,25 @@
 export type TypeOptions = {
   logToConsole?: boolean;
-  logToFile?: string;
+  onMetricsReady?: (metrics: TypeMetrics) => void;
 };
 
 export type TypeEvents = 'onStart' | 'onLoad' | 'onResolve' | 'onEnd' | 'setup';
 
-export type TypeMetrics = Record<
-  string,
-  {
-    duration: number;
-    events: Record<Partial<TypeEvents>, Array<number>>;
-  }
->;
+type TypePluginName = string;
+
+export type TypePluginMetrics = {
+  duration: number;
+  hooks: Record<
+    Partial<TypeEvents>,
+    {
+      duration: number;
+      iterations: number;
+      start: number;
+    }
+  >;
+};
+
+export type TypeMetrics = {
+  duration: number;
+  plugins: Record<TypePluginName, TypePluginMetrics>;
+};

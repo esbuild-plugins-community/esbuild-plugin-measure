@@ -1,22 +1,24 @@
 import { performance } from 'node:perf_hooks';
 
-import { TypeEvents, TypeMetrics } from './types.js';
+import { TypeEvents, TypePluginMetrics } from './types.js';
 
 // eslint-disable-next-line max-params
 export function createHookCallback(
   detector: { onEndExecuting: boolean },
-  pluginMetrics: TypeMetrics[keyof TypeMetrics],
+  pluginMetrics: TypePluginMetrics,
   hookName: TypeEvents,
   cb: any
 ) {
-  pluginMetrics.events[hookName] ??= [];
+  pluginMetrics.hooks[hookName] ??= { iterations: 0, duration: 0, start: 0 };
 
   return async function call(...args: Array<any>) {
     if (hookName === 'onEnd') {
       detector.onEndExecuting = true;
     }
 
-    const start = performance.now();
+    if (!pluginMetrics.hooks[hookName].start) {
+      pluginMetrics.hooks[hookName].start = performance.now();
+    }
 
     try {
       return await cb(...args);
@@ -25,10 +27,11 @@ export function createHookCallback(
         detector.onEndExecuting = false;
       }
 
-      const duration = performance.now() - start;
-
-      pluginMetrics.events[hookName].push(duration);
-      pluginMetrics.duration += duration;
+      pluginMetrics.hooks[hookName].iterations += 1;
+      pluginMetrics.hooks[hookName].duration = Math.max(
+        pluginMetrics.hooks[hookName].duration,
+        performance.now() - pluginMetrics.hooks[hookName].start
+      );
     }
   };
 }

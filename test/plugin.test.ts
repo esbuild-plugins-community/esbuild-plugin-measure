@@ -5,108 +5,80 @@ import * as path from 'node:path';
 import * as assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 
-import { build, BuildOptions, context, Plugin } from 'esbuild';
+import { build, BuildOptions, context } from 'esbuild';
 
-import { pluginPerf, TypeMetrics } from '../src/index.js';
+import { pluginPerf, TypeEvents, TypeMetrics } from '../src/index.js';
+import { TypeOptions } from '../src/types.js';
 
-const DELAYS: Record<'onStart' | 'onLoad' | 'onResolve' | 'onEnd' | 'setup', number> = {
-  setup: 4,
-  onStart: 5,
-  onResolve: 6,
-  onLoad: 7,
-  onEnd: 8,
-};
+import {
+  pluginNoEnd,
+  pluginLogEnd,
+  pluginNoHooks,
+  pluginOnStart,
+  pluginAllHooks,
+  pluginLogStart,
+  pluginNoEndOnload,
+} from './helpers/plugins.js';
+import { delay, getTypedEntries, DELAYS } from './helpers/utils.js';
 
-function delay(d: number) {
-  return new Promise((resolve) => setTimeout(resolve, d));
-}
+function testTimings(timings: TypeMetrics, pName: string, h: Array<TypeEvents>) {
+  const hooks = timings.plugins[pName].hooks;
 
-type TypeEntries<T> = Array<
-  {
-    [K in keyof T]: [K, T[K]];
-  }[keyof T]
->;
-
-export const getTypedEntries = Object.entries as <T extends Record<string, any>>(
-  obj: T
-) => TypeEntries<T>;
-
-const pluginTest = (): Plugin => {
-  return {
-    name: 'plugin-test',
-    setup: async (b) => {
-      await delay(DELAYS.setup);
-
-      b.onStart(async () => {
-        await delay(DELAYS.onStart);
-      });
-
-      b.onResolve({ filter: /./ }, async () => {
-        await delay(DELAYS.onResolve);
-
-        return undefined;
-      });
-
-      b.onLoad({ filter: /./ }, async () => {
-        await delay(DELAYS.onLoad);
-
-        return undefined;
-      });
-
-      b.onEnd(async () => {
-        await delay(DELAYS.onEnd);
-      });
-    },
-  };
-};
-
-function testTimings(timings: TypeMetrics, pName: string, secondTry?: boolean) {
-  const allowedDiff = 5;
-
-  assert.equal(timings[pName].events.setup.length === (secondTry ? 0 : 1), true, 'setup length');
-  assert.equal(timings[pName].events.onStart.length === 1, true, 'onStart length');
-  assert.equal(timings[pName].events.onResolve.length === 8, true, 'onResolve length');
-  assert.equal(timings[pName].events.onLoad.length === 8, true, 'onLoad length');
-
-  let totalDuration = 0;
-
-  getTypedEntries(DELAYS).forEach(([hookName, defaultDuration]) => {
-    timings[pName].events[hookName].forEach((duration) => {
-      const minDuration = defaultDuration - 1;
-      const maxDuration = minDuration + allowedDiff;
-
-      totalDuration += duration;
-
+  getTypedEntries(DELAYS).forEach(([hookName]) => {
+    if (!h.includes(hookName)) {
+      assert.equal(typeof hooks[hookName] === 'undefined', true, `${hookName} should not exist`);
+    } else {
+      assert.equal(typeof hooks[hookName] === 'object', true, `${hookName} should be an object`);
       assert.equal(
-        duration > minDuration && duration < maxDuration,
+        hooks[hookName].iterations === (hookName === 'onResolve' || hookName === 'onLoad' ? 8 : 1),
         true,
-        `${hookName} duration should be between ${minDuration}<${maxDuration} but it is ${duration}`
+        `${hookName} iterations`
       );
-    });
+    }
   });
 
-  assert.equal(
-    timings[pName].duration === totalDuration,
-    true,
-    `total duration should be ${totalDuration} but it is ${timings[pName].duration}`
-  );
+  getTypedEntries(DELAYS).forEach(([hookName, defaultDuration]) => {
+    if (!h.includes(hookName)) return;
+
+    const { duration, iterations } = hooks[hookName];
+
+    const minDuration = defaultDuration * iterations - 1;
+
+    assert.equal(
+      duration > minDuration,
+      true,
+      `${hookName} duration should be more than ${minDuration} but it is ${duration}`
+    );
+  });
 }
 
 void describe('Plugin test', async () => {
   const pathRes = path.resolve('test/res');
   const pathTemp = path.resolve('test/tmp');
-  const pathTimings = path.resolve(pathTemp, 'timings.json');
+
+  if (!fs.existsSync(pathTemp)) {
+    fs.mkdirSync(pathTemp);
+  }
 
   afterEach(() => {
     fs.readdirSync(pathTemp).forEach((file) => {
       fs.unlinkSync(path.resolve(pathTemp, file));
     });
 
+    fs.writeFileSync(
+      path.resolve(pathRes, 'modifierAll.tsx'),
+      `import './global.css';
+
+export const test = __dirname;
+`,
+      'utf-8'
+    );
+
     // eslint-disable-next-line no-console
     console.log('\n***\n');
   });
 
-  const getConfig = (): BuildOptions => ({
+  const getConfig = (onMetricsReady: TypeOptions['onMetricsReady']): BuildOptions => ({
     bundle: true,
     format: 'esm',
     logLevel: 'silent',
@@ -116,6 +88,8 @@ void describe('Plugin test', async () => {
     metafile: true,
     write: false,
     resolveExtensions: ['.ts'],
+    entryPoints: [path.resolve(pathRes, `modifierAll.tsx`)],
+    packages: 'external',
     loader: {
       // eslint-disable-next-line @typescript-eslint/naming-convention
       '.woff': 'file',
@@ -124,41 +98,82 @@ void describe('Plugin test', async () => {
       // eslint-disable-next-line @typescript-eslint/naming-convention
       '.ttf': 'file',
     },
+    plugins: [
+      pluginLogStart(),
+      pluginPerf({ onMetricsReady, logToConsole: true }),
+      pluginAllHooks(),
+      pluginAllHooks(),
+      pluginNoEnd(),
+      pluginNoEndOnload(),
+      pluginOnStart(),
+      pluginNoHooks(),
+      pluginLogEnd(),
+    ],
   });
 
   await it('works in build mode', async () => {
-    const fileName = 'modifierAll';
-
-    await build({
-      ...getConfig(),
-      entryPoints: [path.resolve(pathRes, `${fileName}.tsx`)],
-      plugins: [
-        pluginPerf({ logToFile: pathTimings, logToConsole: true }),
-        pluginTest(),
-        pluginTest(),
-        pluginTest(),
-      ],
-      packages: 'external',
-    });
-
-    await delay(10);
-
-    const timings: TypeMetrics = JSON.parse(fs.readFileSync(pathTimings, 'utf-8'));
-
-    testTimings(timings, 'plugin-test');
-    testTimings(timings, 'plugin-test (2)');
-    testTimings(timings, 'plugin-test (3)');
+    await build(
+      getConfig((metrics) => {
+        testTimings(metrics, 'plugin-test-all', [
+          'setup',
+          'onStart',
+          'onResolve',
+          'onLoad',
+          'onEnd',
+        ]);
+        testTimings(metrics, 'plugin-test-all (2)', [
+          'setup',
+          'onStart',
+          'onResolve',
+          'onLoad',
+          'onEnd',
+        ]);
+        testTimings(metrics, 'plugin-test-no-end', ['setup', 'onStart', 'onResolve', 'onLoad']);
+        testTimings(metrics, 'plugin-test-no-end-onload', ['setup', 'onStart', 'onResolve']);
+        testTimings(metrics, 'plugin-test-onstart', ['setup', 'onStart']);
+        testTimings(metrics, 'plugin-test-no-hooks', ['setup']);
+      })
+    );
   });
 
   await it('works in rebuild mode', async () => {
-    const fileName = 'modifierAll';
+    let lastMetrics: TypeMetrics | undefined;
 
-    const ctx = await context({
-      ...getConfig(),
-      entryPoints: [path.resolve(pathRes, `${fileName}.tsx`)],
-      plugins: [pluginPerf({ logToFile: pathTimings }), pluginTest(), pluginTest(), pluginTest()],
-      packages: 'external',
-    });
+    const ctx = await context(
+      getConfig((metrics) => {
+        if (lastMetrics) {
+          assert.notEqual(JSON.stringify(lastMetrics), JSON.stringify(metrics));
+
+          testTimings(metrics, 'plugin-test-all', ['onStart', 'onResolve', 'onLoad', 'onEnd']);
+          testTimings(metrics, 'plugin-test-all (2)', ['onStart', 'onResolve', 'onLoad', 'onEnd']);
+          testTimings(metrics, 'plugin-test-no-end', ['onStart', 'onResolve', 'onLoad']);
+          testTimings(metrics, 'plugin-test-no-end-onload', ['onStart', 'onResolve']);
+          testTimings(metrics, 'plugin-test-onstart', ['onStart']);
+          testTimings(metrics, 'plugin-test-no-hooks', []);
+        } else {
+          testTimings(metrics, 'plugin-test-all', [
+            'setup',
+            'onStart',
+            'onResolve',
+            'onLoad',
+            'onEnd',
+          ]);
+          testTimings(metrics, 'plugin-test-all (2)', [
+            'setup',
+            'onStart',
+            'onResolve',
+            'onLoad',
+            'onEnd',
+          ]);
+          testTimings(metrics, 'plugin-test-no-end', ['setup', 'onStart', 'onResolve', 'onLoad']);
+          testTimings(metrics, 'plugin-test-no-end-onload', ['setup', 'onStart', 'onResolve']);
+          testTimings(metrics, 'plugin-test-onstart', ['setup', 'onStart']);
+          testTimings(metrics, 'plugin-test-no-hooks', ['setup']);
+        }
+
+        lastMetrics = metrics;
+      })
+    );
 
     await ctx.rebuild();
 
@@ -167,23 +182,69 @@ void describe('Plugin test', async () => {
     // eslint-disable-next-line no-console
     console.log('\n***\n');
 
-    const timings: TypeMetrics = JSON.parse(fs.readFileSync(pathTimings, 'utf-8'));
-
-    testTimings(timings, 'plugin-test');
-    testTimings(timings, 'plugin-test (2)');
-    testTimings(timings, 'plugin-test (3)');
-
     await ctx.rebuild();
 
     await delay(10);
 
-    const timings2: TypeMetrics = JSON.parse(fs.readFileSync(pathTimings, 'utf-8'));
+    await ctx.dispose();
+  });
 
-    testTimings(timings2, 'plugin-test', true);
-    testTimings(timings2, 'plugin-test (2)', true);
-    testTimings(timings2, 'plugin-test (3)', true);
+  await it('works in watch mode', async () => {
+    let lastMetrics: TypeMetrics | undefined;
 
-    assert.notEqual(JSON.stringify(timings), JSON.stringify(timings2));
+    const ctx = await context(
+      getConfig((metrics) => {
+        if (lastMetrics) {
+          assert.notEqual(JSON.stringify(lastMetrics), JSON.stringify(metrics));
+
+          testTimings(metrics, 'plugin-test-all', ['onStart', 'onResolve', 'onLoad', 'onEnd']);
+          testTimings(metrics, 'plugin-test-all (2)', ['onStart', 'onResolve', 'onLoad', 'onEnd']);
+          testTimings(metrics, 'plugin-test-no-end', ['onStart', 'onResolve', 'onLoad']);
+          testTimings(metrics, 'plugin-test-no-end-onload', ['onStart', 'onResolve']);
+          testTimings(metrics, 'plugin-test-onstart', ['onStart']);
+          testTimings(metrics, 'plugin-test-no-hooks', []);
+        } else {
+          testTimings(metrics, 'plugin-test-all', [
+            'setup',
+            'onStart',
+            'onResolve',
+            'onLoad',
+            'onEnd',
+          ]);
+          testTimings(metrics, 'plugin-test-all (2)', [
+            'setup',
+            'onStart',
+            'onResolve',
+            'onLoad',
+            'onEnd',
+          ]);
+          testTimings(metrics, 'plugin-test-no-end', ['setup', 'onStart', 'onResolve', 'onLoad']);
+          testTimings(metrics, 'plugin-test-no-end-onload', ['setup', 'onStart', 'onResolve']);
+          testTimings(metrics, 'plugin-test-onstart', ['setup', 'onStart']);
+          testTimings(metrics, 'plugin-test-no-hooks', ['setup']);
+        }
+
+        lastMetrics = metrics;
+      })
+    );
+
+    await ctx.watch();
+
+    await delay(500);
+
+    // eslint-disable-next-line no-console
+    console.log('\n***\n');
+
+    fs.writeFileSync(
+      path.resolve(pathRes, 'modifierAll.tsx'),
+      `import './global.css';
+
+  export const test = __dirname2;
+  `,
+      'utf-8'
+    );
+
+    await delay(500);
 
     await ctx.dispose();
   });
