@@ -1,11 +1,11 @@
 import { PluginBuild } from 'esbuild';
 
 import { pluginName } from './constants.js';
-import { TypeEvents, TypeMetrics } from './types.js';
+import { TypeHooks, TypeMetrics } from './types.js';
 import { createHookCallback } from './createHookCallback.js';
 import { createPluginMetrics } from './createPluginMetrics.js';
 
-const hooks: Array<Exclude<TypeEvents, 'setup'>> = ['onStart', 'onLoad', 'onResolve', 'onEnd'];
+const hooks: Array<Exclude<TypeHooks, 'setup'>> = ['onStart', 'onLoad', 'onResolve', 'onEnd'];
 
 export const wrapPlugins = (
   detector: { onEndExecuting: boolean },
@@ -28,6 +28,7 @@ export const wrapPlugins = (
       for (const hookName of hooks) {
         newBuildObject[hookName] = async (...hookArgs: Array<any>) => {
           const hookCallback = createHookCallback(
+            metrics,
             detector,
             pluginMetrics,
             hookName,
@@ -42,7 +43,13 @@ export const wrapPlugins = (
         };
       }
 
-      const setupCallback = createHookCallback(detector, pluginMetrics, 'setup', initialSetup);
+      const setupCallback = createHookCallback(
+        metrics,
+        detector,
+        pluginMetrics,
+        'setup',
+        initialSetup
+      );
 
       await setupCallback({
         ...newBuildObject,

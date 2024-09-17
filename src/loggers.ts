@@ -1,4 +1,4 @@
-import { green, white, yellow, yellowBright } from 'colorette';
+import { green, white, yellow } from 'colorette';
 
 import { TypeMetrics } from './types.js';
 
@@ -7,15 +7,14 @@ export function logToConsole(metrics: TypeMetrics) {
     return `${count} ${noun}${count !== 1 ? suffix : ''}`;
   }
 
-  let summary = `\nPlugins (in parallel) took ${yellow(`${metrics.duration.toFixed(2)} ms`)}\n`;
+  let summary = `\nPlugins from first hook execution to last took ${yellow(`${metrics.totalDuration.toFixed(2)} ms`)}\n`;
 
-  Object.entries(metrics.plugins).forEach(([pName, { duration, hooks }]) => {
+  Object.entries(metrics.plugins).forEach(([pName, { hooks }]) => {
     summary += green(`\n[${pName}] `);
-    summary += `took ${yellowBright(`${duration.toFixed(2)} ms`)}`;
 
     Object.entries(hooks).forEach(([hookName, hookMetrics]) => {
       summary += `\n  ${white(`▶ ${hookName}`)}: ${pluralize(hookMetrics.iterations, 'execution')} `;
-      summary += `took ${yellow(`${hookMetrics.duration.toFixed(2)} ms`)}`;
+      summary += `took ${yellow(`${hookMetrics.hookDuration.toFixed(2)} ms`)}`;
     });
   });
   // eslint-disable-next-line no-console

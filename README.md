@@ -59,76 +59,85 @@ esbuild.build({
 ### Example Console Output
 
 ```
-Plugins (in parallel) took 355.25 ms
+Plugins from first hook execution to last took 618.40 ms
 
-[@espcom/esbuild-plugin-replace] took 332.67 ms
-  ▶ setup: 1 execution took 0.25 ms
-  ▶ onLoad: 518 executions took 332.41 ms
-[sass-plugin] took 281.24 ms
-  ▶ setup: 1 execution took 6.71 ms
-  ▶ onStart: 1 execution took 0.04 ms
-  ▶ onLoad: 1 execution took 274.49 ms
-[sass-plugin (2)] took 302.19 ms
-  ▶ setup: 1 execution took 5.23 ms
-  ▶ onStart: 1 execution took 0.03 ms
-  ▶ onResolve: 42 executions took 217.99 ms
-  ▶ onLoad: 84 executions took 296.93 ms
-[@espcom/esbuild-plugin-inject-preload] took 10.32 ms
-  ▶ setup: 1 execution took 0.22 ms
-  ▶ onEnd: 1 execution took 10.10 ms
+[@espcom/esbuild-plugin-replace] 
+  ▶ setup: 1 execution took 1.19 ms
+  ▶ onLoad: 518 executions took 318.59 ms
+[sass-plugin] 
+  ▶ setup: 1 execution took 8.49 ms
+  ▶ onStart: 1 execution took 0.41 ms
+  ▶ onLoad: 1 execution took 194.64 ms
+[sass-plugin (2)] 
+  ▶ setup: 1 execution took 6.88 ms
+  ▶ onStart: 1 execution took 0.40 ms
+  ▶ onResolve: 42 executions took 193.71 ms
+  ▶ onLoad: 84 executions took 285.19 ms
+[@espcom/esbuild-plugin-inject-preload] 
+  ▶ setup: 1 execution took 0.23 ms
+  ▶ onEnd: 1 execution took 9.77 ms
 ```
 
 ### Example Raw Metrics Output
 
 ```json
 {
-  "duration": 308.14735200000007,
+  "totalDuration": 621.983111,
+  "totalStart": 1345.362638,
   "plugins": {
-    "plugin-test-all": {
-      "duration": 253.366342,
+    "@espcom/esbuild-plugin-replace": {
+      "pluginDuration": 366.9812840000002,
       "hooks": {
         "setup": {
           "iterations": 1,
-          "duration": 4.209176999999983,
-          "start": 149.894539
+          "hookDuration": 1.1948409999999967,
+          "hookStart": 1345.368939
+        },
+        "onLoad": {
+          "iterations": 518,
+          "hookDuration": 344.0909780000002,
+          "hookStart": 1368.257502
+        }
+      },
+      "pluginStart": 1345.367196
+    },
+    "sass-plugin": {
+      "pluginDuration": 335.0744480000001,
+      "hooks": {
+        "setup": {
+          "iterations": 1,
+          "hookDuration": 7.800380000000132,
+          "hookStart": 1346.593385
         },
         "onStart": {
           "iterations": 1,
-          "duration": 5.490779000000003,
-          "start": 180.251755
-        },
-        "onResolve": {
-          "iterations": 8,
-          "duration": 233.75613800000002,
-          "start": 187.122189
+          "hookDuration": 0.368748000000096,
+          "hookStart": 1364.603021
         },
         "onLoad": {
-          "iterations": 8,
-          "duration": 235.042409,
-          "start": 212.961732
+          "iterations": 1,
+          "hookDuration": 297.23064,
+          "hookStart": 1384.436522
+        }
+      },
+      "pluginStart": 1346.592714
+    },
+    "@espcom/esbuild-plugin-inject-preload": {
+      "pluginDuration": 606.655913,
+      "hooks": {
+        "setup": {
+          "iterations": 1,
+          "hookDuration": 0.22916800000007242,
+          "hookStart": 1360.690728
         },
         "onEnd": {
           "iterations": 1,
-          "duration": 8.623977000000025,
-          "start": 469.919069
+          "hookDuration": 9.544465000000173,
+          "hookStart": 1957.801284
         }
-      }
-    },
-    "plugin-test-onstart": {
-      "duration": 9.782200000000017,
-      "hooks": {
-        "setup": {
-          "iterations": 1,
-          "duration": 4.306949000000003,
-          "start": 167.535588
-        },
-        "onStart": {
-          "iterations": 1,
-          "duration": 5.475251000000014,
-          "start": 180.389141
-        }
-      }
-    },
+      },
+      "pluginStart": 1360.689836
+    }
   }
 }
 ```

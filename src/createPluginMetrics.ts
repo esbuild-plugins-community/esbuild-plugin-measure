@@ -12,7 +12,11 @@ export function createPluginMetrics(metrics: TypeMetrics, plugin: Plugin): TypeP
     pluginMetricsName = `${plugin.name} (${++i})`;
   }
 
-  metrics.plugins[pluginMetricsName] = { duration: 0, hooks: {} as any };
+  metrics.plugins[pluginMetricsName] = {
+    pluginDuration: 0,
+    hooks: {} as any,
+    pluginStart: 0,
+  };
 
   return metrics.plugins[pluginMetricsName];
 }

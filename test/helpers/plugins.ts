@@ -2,31 +2,6 @@ import { Plugin } from 'esbuild';
 
 import { delay, DELAYS } from './utils.js';
 
-let time: number;
-
-export const pluginLogStart = (): Plugin => ({
-  name: 'esbuild-plugin-log-start',
-  setup(b) {
-    b.onStart(() => {
-      time = performance.now();
-    });
-  },
-});
-
-export const pluginLogEnd = (): Plugin => ({
-  name: 'esbuild-plugin-log-end',
-  setup(b) {
-    b.onEnd(() => {
-      const buildTime = (performance.now() - time).toFixed(2);
-
-      // eslint-disable-next-line no-console
-      console.log(`TOTAL: ${buildTime}ms`);
-
-      time = 0;
-    });
-  },
-});
-
 export const pluginAllHooks = (): Plugin => {
   return {
     name: 'plugin-test-all',
