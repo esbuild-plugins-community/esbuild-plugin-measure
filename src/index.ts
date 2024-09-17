@@ -1,2 +1,2 @@
 export { pluginPerf } from './pluginPerf.js';
-export type { TypeMetrics, TypeEvents } from './types.js';
+export type { TypeMetrics, TypeHooks } from './types.js';

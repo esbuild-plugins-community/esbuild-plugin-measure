@@ -5,7 +5,6 @@ import { logInterval, pluginName } from './constants.js';
 import { TypeMetrics, TypeOptions } from './types.js';
 import { wrapPlugins } from './wrapPlugins.js';
 import { logToConsole } from './loggers.js';
-import { fillMetrics } from './fillMetrics.js';
 import { clearMetrics } from './clearMetrics.js';
 
 export const pluginPerf = (options?: TypeOptions): Plugin => {
@@ -19,7 +18,7 @@ export const pluginPerf = (options?: TypeOptions): Plugin => {
   return {
     name: pluginName,
     setup: (build) => {
-      const metrics: TypeMetrics = { duration: 0, plugins: {} };
+      const metrics: TypeMetrics = { totalDuration: 0, plugins: {}, totalStart: 0 };
       const detector: { onEndExecuting: boolean } = { onEndExecuting: false };
 
       wrapPlugins(detector, metrics, build);
@@ -28,7 +27,6 @@ export const pluginPerf = (options?: TypeOptions): Plugin => {
         const interval = setInterval(() => {
           if (!detector.onEndExecuting) {
             clearInterval(interval);
-            fillMetrics(metrics);
 
             if (finalOptions.logToConsole) logToConsole(metrics);
 

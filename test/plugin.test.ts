@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-magic-numbers */
+/* eslint-disable @typescript-eslint/no-magic-numbers, @typescript-eslint/naming-convention */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -6,22 +6,26 @@ import * as assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 
 import { build, BuildOptions, context } from 'esbuild';
+import { yellow } from 'colorette';
 
-import { pluginPerf, TypeEvents, TypeMetrics } from '../src/index.js';
+import { pluginPerf, TypeHooks, TypeMetrics } from '../src/index.js';
 import { TypeOptions } from '../src/types.js';
 
 import {
   pluginNoEnd,
-  pluginLogEnd,
   pluginNoHooks,
   pluginOnStart,
   pluginAllHooks,
-  pluginLogStart,
   pluginNoEndOnload,
 } from './helpers/plugins.js';
 import { delay, getTypedEntries, DELAYS } from './helpers/utils.js';
 
-function testTimings(timings: TypeMetrics, pName: string, h: Array<TypeEvents>) {
+function showTotal(totalBuildTime: number) {
+  // eslint-disable-next-line no-console
+  console.log(`\nTEST: TOTAL ${yellow(`${totalBuildTime.toFixed(2)} ms`)}\n`);
+}
+
+function testTimings(timings: TypeMetrics, pName: string, h: Array<TypeHooks>) {
   const hooks = timings.plugins[pName].hooks;
 
   getTypedEntries(DELAYS).forEach(([hookName]) => {
@@ -40,14 +44,34 @@ function testTimings(timings: TypeMetrics, pName: string, h: Array<TypeEvents>) 
   getTypedEntries(DELAYS).forEach(([hookName, defaultDuration]) => {
     if (!h.includes(hookName)) return;
 
-    const { duration, iterations } = hooks[hookName];
+    const { hookDuration, iterations } = hooks[hookName];
 
     const minDuration = defaultDuration * iterations - 1;
 
     assert.equal(
-      duration > minDuration,
+      hookDuration > minDuration,
       true,
-      `${hookName} duration should be more than ${minDuration} but it is ${duration}`
+      `${hookName} duration should be more than ${minDuration} but it is ${hookDuration}`
+    );
+  });
+}
+
+function testAllPlugins(metrics: TypeMetrics, noSetup?: boolean) {
+  const config = {
+    'plugin-test-all': ['setup', 'onStart', 'onResolve', 'onLoad', 'onEnd'],
+    'plugin-test-all (2)': ['setup', 'onStart', 'onResolve', 'onLoad', 'onEnd'],
+    'plugin-test-no-end': ['setup', 'onStart', 'onResolve', 'onLoad'],
+    'plugin-test-no-end-onload': ['setup', 'onStart', 'onResolve'],
+    'plugin-test-onstart': ['setup', 'onStart'],
+    'plugin-test-no-hooks': ['setup'],
+  };
+
+  getTypedEntries(config).forEach(([pluginName, hooksList]) => {
+    testTimings(
+      metrics,
+      pluginName,
+      // @ts-ignore
+      hooksList.filter((hookName) => (noSetup ? hookName !== 'setup' : true))
     );
   });
 }
@@ -73,9 +97,6 @@ export const test = __dirname;
 `,
       'utf-8'
     );
-
-    // eslint-disable-next-line no-console
-    console.log('\n***\n');
   });
 
   const getConfig = (onMetricsReady: TypeOptions['onMetricsReady']): BuildOptions => ({
@@ -91,15 +112,11 @@ export const test = __dirname;
     entryPoints: [path.resolve(pathRes, `modifierAll.tsx`)],
     packages: 'external',
     loader: {
-      // eslint-disable-next-line @typescript-eslint/naming-convention
       '.woff': 'file',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
       '.woff2': 'file',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
       '.ttf': 'file',
     },
     plugins: [
-      pluginLogStart(),
       pluginPerf({ onMetricsReady, logToConsole: true }),
       pluginAllHooks(),
       pluginAllHooks(),
@@ -107,133 +124,127 @@ export const test = __dirname;
       pluginNoEndOnload(),
       pluginOnStart(),
       pluginNoHooks(),
-      pluginLogEnd(),
     ],
   });
 
   await it('works in build mode', async () => {
-    await build(
-      getConfig((metrics) => {
-        testTimings(metrics, 'plugin-test-all', [
-          'setup',
-          'onStart',
-          'onResolve',
-          'onLoad',
-          'onEnd',
-        ]);
-        testTimings(metrics, 'plugin-test-all (2)', [
-          'setup',
-          'onStart',
-          'onResolve',
-          'onLoad',
-          'onEnd',
-        ]);
-        testTimings(metrics, 'plugin-test-no-end', ['setup', 'onStart', 'onResolve', 'onLoad']);
-        testTimings(metrics, 'plugin-test-no-end-onload', ['setup', 'onStart', 'onResolve']);
-        testTimings(metrics, 'plugin-test-onstart', ['setup', 'onStart']);
-        testTimings(metrics, 'plugin-test-no-hooks', ['setup']);
-      })
+    const buildVersion = 1;
+    const start = performance.now();
+    let totalBuildTime = 0;
+    let metrics!: TypeMetrics;
+
+    // eslint-disable-next-line no-console
+    console.log(`\nTEST: BUILD (${buildVersion})`);
+
+    await build(getConfig((m) => (metrics = m)));
+
+    totalBuildTime = performance.now() - start;
+
+    await delay(10);
+
+    showTotal(totalBuildTime);
+
+    assert.equal(
+      totalBuildTime > metrics.totalDuration,
+      true,
+      `TEST: BUILD (${buildVersion}) total duration ${metrics.totalDuration} should be less than ${totalBuildTime}`
     );
+
+    testAllPlugins(metrics);
   });
 
   await it('works in rebuild mode', async () => {
+    let buildVersion = 1;
     let lastMetrics: TypeMetrics | undefined;
+    let start = performance.now();
+    let totalBuildTime = 0;
+    let metrics!: TypeMetrics;
 
-    const ctx = await context(
-      getConfig((metrics) => {
-        if (lastMetrics) {
-          assert.notEqual(JSON.stringify(lastMetrics), JSON.stringify(metrics));
-
-          testTimings(metrics, 'plugin-test-all', ['onStart', 'onResolve', 'onLoad', 'onEnd']);
-          testTimings(metrics, 'plugin-test-all (2)', ['onStart', 'onResolve', 'onLoad', 'onEnd']);
-          testTimings(metrics, 'plugin-test-no-end', ['onStart', 'onResolve', 'onLoad']);
-          testTimings(metrics, 'plugin-test-no-end-onload', ['onStart', 'onResolve']);
-          testTimings(metrics, 'plugin-test-onstart', ['onStart']);
-          testTimings(metrics, 'plugin-test-no-hooks', []);
-        } else {
-          testTimings(metrics, 'plugin-test-all', [
-            'setup',
-            'onStart',
-            'onResolve',
-            'onLoad',
-            'onEnd',
-          ]);
-          testTimings(metrics, 'plugin-test-all (2)', [
-            'setup',
-            'onStart',
-            'onResolve',
-            'onLoad',
-            'onEnd',
-          ]);
-          testTimings(metrics, 'plugin-test-no-end', ['setup', 'onStart', 'onResolve', 'onLoad']);
-          testTimings(metrics, 'plugin-test-no-end-onload', ['setup', 'onStart', 'onResolve']);
-          testTimings(metrics, 'plugin-test-onstart', ['setup', 'onStart']);
-          testTimings(metrics, 'plugin-test-no-hooks', ['setup']);
-        }
-
-        lastMetrics = metrics;
-      })
-    );
-
-    await ctx.rebuild();
-
-    await delay(10);
+    const ctx = await context(getConfig((m) => (metrics = m)));
 
     // eslint-disable-next-line no-console
-    console.log('\n***\n');
+    console.log(`\nTEST: REBUILD (${buildVersion})`);
 
     await ctx.rebuild();
 
+    totalBuildTime = performance.now() - start;
+
     await delay(10);
+
+    showTotal(totalBuildTime);
+
+    assert.equal(
+      totalBuildTime > metrics.totalDuration,
+      true,
+      `TEST: REBUILD (${buildVersion}) total duration ${metrics.totalDuration} should be less than ${totalBuildTime}`
+    );
+
+    testAllPlugins(metrics);
+
+    // eslint-disable-next-line prefer-const
+    lastMetrics = JSON.parse(JSON.stringify(metrics));
+
+    start = performance.now();
+    buildVersion += 1;
+
+    // eslint-disable-next-line no-console
+    console.log(`\nTEST: REBUILD (${buildVersion})`);
+
+    await ctx.rebuild();
+
+    totalBuildTime = performance.now() - start;
+
+    await delay(10);
+
+    showTotal(totalBuildTime);
+
+    assert.notEqual(JSON.stringify(lastMetrics), JSON.stringify(metrics));
+
+    testAllPlugins(metrics, true);
 
     await ctx.dispose();
   });
 
   await it('works in watch mode', async () => {
+    let buildVersion = 1;
     let lastMetrics: TypeMetrics | undefined;
+    let start = performance.now();
+    let totalBuildTime = 0;
+    let metrics!: TypeMetrics;
 
     const ctx = await context(
-      getConfig((metrics) => {
-        if (lastMetrics) {
-          assert.notEqual(JSON.stringify(lastMetrics), JSON.stringify(metrics));
+      getConfig((m) => {
+        metrics = m;
 
-          testTimings(metrics, 'plugin-test-all', ['onStart', 'onResolve', 'onLoad', 'onEnd']);
-          testTimings(metrics, 'plugin-test-all (2)', ['onStart', 'onResolve', 'onLoad', 'onEnd']);
-          testTimings(metrics, 'plugin-test-no-end', ['onStart', 'onResolve', 'onLoad']);
-          testTimings(metrics, 'plugin-test-no-end-onload', ['onStart', 'onResolve']);
-          testTimings(metrics, 'plugin-test-onstart', ['onStart']);
-          testTimings(metrics, 'plugin-test-no-hooks', []);
-        } else {
-          testTimings(metrics, 'plugin-test-all', [
-            'setup',
-            'onStart',
-            'onResolve',
-            'onLoad',
-            'onEnd',
-          ]);
-          testTimings(metrics, 'plugin-test-all (2)', [
-            'setup',
-            'onStart',
-            'onResolve',
-            'onLoad',
-            'onEnd',
-          ]);
-          testTimings(metrics, 'plugin-test-no-end', ['setup', 'onStart', 'onResolve', 'onLoad']);
-          testTimings(metrics, 'plugin-test-no-end-onload', ['setup', 'onStart', 'onResolve']);
-          testTimings(metrics, 'plugin-test-onstart', ['setup', 'onStart']);
-          testTimings(metrics, 'plugin-test-no-hooks', ['setup']);
-        }
-
-        lastMetrics = metrics;
+        totalBuildTime = performance.now() - start;
       })
     );
+
+    // eslint-disable-next-line no-console
+    console.log(`\nTEST: WATCH (${buildVersion})`);
 
     await ctx.watch();
 
     await delay(500);
 
+    showTotal(totalBuildTime);
+
+    assert.equal(
+      totalBuildTime > metrics.totalDuration,
+      true,
+      `TEST: REBUILD (${buildVersion}) total duration ${metrics.totalDuration} should be less than ${totalBuildTime}`
+    );
+
+    testAllPlugins(metrics);
+
+    // eslint-disable-next-line prefer-const
+    lastMetrics = JSON.parse(JSON.stringify(metrics));
+
+    start = performance.now();
+    buildVersion += 1;
+
     // eslint-disable-next-line no-console
-    console.log('\n***\n');
+    console.log(`\nTEST: WATCH (${buildVersion})`);
 
     fs.writeFileSync(
       path.resolve(pathRes, 'modifierAll.tsx'),
@@ -245,6 +256,12 @@ export const test = __dirname;
     );
 
     await delay(500);
+
+    showTotal(totalBuildTime);
+
+    assert.notEqual(JSON.stringify(lastMetrics), JSON.stringify(metrics));
+
+    testAllPlugins(metrics, true);
 
     await ctx.dispose();
   });
