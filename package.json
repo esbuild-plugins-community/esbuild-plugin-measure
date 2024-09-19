@@ -9,6 +9,13 @@
     "type": "git",
     "url": "git+https://github.com/esbuild-plugins-community/esbuild-plugin-perf.git"
   },
+  "keywords": [
+    "esbuild",
+    "esbuild-plugin",
+    "plugin",
+    "performance",
+    "build-time"
+  ],
   "scripts": {
     "prepare": "husky",
     "prepublishOnly": "pnpm run analyze:js&&pnpm run check-types&&pnpm run test",
